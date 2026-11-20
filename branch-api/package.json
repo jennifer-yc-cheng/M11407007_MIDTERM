@@ -1,0 +1,14 @@
+{
+  "name": "branch-api",
+  "version": "1.0.0",
+  "description": "分店服務：同一個 image 部署給每一間分店，用環境變數 BRANCH_CODE 區分",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.13.1"
+  }
+}

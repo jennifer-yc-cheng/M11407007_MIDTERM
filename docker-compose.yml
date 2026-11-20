@@ -1,0 +1,122 @@
+name: drinkchain
+
+# ---- 所有分店共用的設定（同一個 image，只有環境變數不同） ----
+x-branch: &branch
+  build: ./branch-api
+  image: drinkchain/branch-api:latest
+  restart: unless-stopped
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+x-branch-env: &branch-env
+  PGHOST: postgres
+  PGUSER: ${POSTGRES_USER:-drink}
+  PGPASSWORD: ${POSTGRES_PASSWORD:-drink123}
+  HQ_URL: http://hq-api:3000
+  JWT_SECRET: ${JWT_SECRET:-please-change-this-jwt-secret}
+  INTERNAL_TOKEN: ${INTERNAL_TOKEN:-please-change-this-internal-token}
+  TZ: Asia/Taipei
+
+services:
+  # 一個 PostgreSQL container，內含 hq_db 與每間分店各自的 branch_xxx 資料庫
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-drink}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-drink123}
+      TZ: Asia/Taipei
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # 總部服務：共用菜單、帳號登入、全品牌營收彙總
+  hq-api:
+    build: ./hq-api
+    image: drinkchain/hq-api:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-drink}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-drink123}
+      JWT_SECRET: ${JWT_SECRET:-please-change-this-jwt-secret}
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-please-change-this-internal-token}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+      DEFAULT_MANAGER_PASSWORD: ${DEFAULT_MANAGER_PASSWORD:-manager123}
+      TZ: Asia/Taipei
+
+  # 前端網站 + API Gateway（唯一對外開放的 port）
+  gateway:
+    build: ./frontend
+    image: drinkchain/gateway:latest
+    restart: unless-stopped
+    depends_on:
+      - hq-api
+    ports:
+      - "${HTTP_PORT:-80}:80"
+
+  # ---- 分店（服務名稱必須是 branch-<分店代碼>，Gateway 依此轉發） ----
+  branch-taoyuan:
+    <<: *branch
+    environment:
+      <<: *branch-env
+      BRANCH_CODE: taoyuan
+      BRANCH_NAME: 桃園中正店
+      BRANCH_CITY: 桃園市
+      BRANCH_ADDRESS: 桃園市桃園區中正路 100 號
+
+  branch-zhongli:
+    <<: *branch
+    environment:
+      <<: *branch-env
+      BRANCH_CODE: zhongli
+      BRANCH_NAME: 中壢中央店
+      BRANCH_CITY: 桃園市
+      BRANCH_ADDRESS: 桃園市中壢區中央西路 50 號
+
+  branch-bade:
+    <<: *branch
+    environment:
+      <<: *branch-env
+      BRANCH_CODE: bade
+      BRANCH_NAME: 八德介壽店
+      BRANCH_CITY: 桃園市
+      BRANCH_ADDRESS: 桃園市八德區介壽路 200 號
+
+  branch-taipei:
+    <<: *branch
+    environment:
+      <<: *branch-env
+      BRANCH_CODE: taipei
+      BRANCH_NAME: 台北信義店
+      BRANCH_CITY: 台北市
+      BRANCH_ADDRESS: 台北市信義區松仁路 10 號
+
+  branch-taichung:
+    <<: *branch
+    environment:
+      <<: *branch-env
+      BRANCH_CODE: taichung
+      BRANCH_NAME: 台中逢甲店
+      BRANCH_CITY: 台中市
+      BRANCH_ADDRESS: 台中市西屯區文華路 88 號
+
+  branch-tainan:
+    <<: *branch
+    environment:
+      <<: *branch-env
+      BRANCH_CODE: tainan
+      BRANCH_NAME: 台南成大店
+      BRANCH_CITY: 台南市
+      BRANCH_ADDRESS: 台南市東區大學路 1 號
+
+volumes:
+  pgdata:

@@ -1,0 +1,2 @@
+# 確保在 Windows 編輯後推上 GitHub，Ubuntu 上的 shell script 仍是 LF 換行
+* text=auto eol=lf
