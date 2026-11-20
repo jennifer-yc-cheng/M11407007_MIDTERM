@@ -290,6 +290,24 @@ docker compose exec postgres psql -U drink -d hq_db              # 進入總部�
 docker compose exec postgres psql -U drink -d branch_taipei      # 進入台北店資料庫
 ```
 
+### 發布 image 到 Docker Hub
+
+`docker-compose.yml` 裡的 image 名稱已經是 Docker Hub 的格式（`yearafter/drinkchain-xxx:1.0`），所以 build 完就能直接推送：
+
+```bash
+sudo docker login                  # 輸入 Docker Hub 帳號 yearafter 與密碼（或 Access Token）
+sudo docker compose build          # 編譯 hq-api、branch-api、gateway 三個 image
+sudo docker compose push           # 推送到 Docker Hub（postgres 是官方 image，不會推送）
+```
+
+| Docker Hub repository | 內容 |
+|---|---|
+| `yearafter/drinkchain-hq-api` | 總部服務 |
+| `yearafter/drinkchain-branch-api` | 分店服務（所有分店共用） |
+| `yearafter/drinkchain-gateway` | 前端網站 + Nginx gateway |
+
+其他主機部署時可以直接下載這些 image，不必在本機編譯：`sudo docker compose pull && sudo docker compose up -d`
+
 ---
 
 ## 6. 專案結構與 API

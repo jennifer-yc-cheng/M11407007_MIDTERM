@@ -43,6 +43,13 @@ sudo docker compose up -d --build
 
 第一次啟動約需 3～5 分鐘。
 
+> 也可以不在本機編譯，直接使用已上傳到 Docker Hub 的 image（[yearafter](https://hub.docker.com/u/yearafter)）：
+> 把上面最後一行換成
+> ```bash
+> sudo docker compose pull
+> sudo docker compose up -d
+> ```
+
 ### 4. 開啟網站
 
 在 Ubuntu 的 Firefox 開啟 <http://localhost>，就會看到分店列表。
