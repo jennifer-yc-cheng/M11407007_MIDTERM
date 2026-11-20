@@ -17,6 +17,8 @@ x-branch-env: &branch-env
   JWT_SECRET: ${JWT_SECRET:-please-change-this-jwt-secret}
   INTERNAL_TOKEN: ${INTERNAL_TOKEN:-please-change-this-internal-token}
   TZ: Asia/Taipei
+  # 首次啟動時產生過去 14 天的示範訂單（用 add-branch.sh 新增的分店不會產生）
+  SEED_DEMO_ORDERS: ${SEED_DEMO_ORDERS:-true}
 
 services:
   # 一個 PostgreSQL container，內含 hq_db 與每間分店各自的 branch_xxx 資料庫

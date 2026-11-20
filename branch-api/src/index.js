@@ -334,9 +334,52 @@ async function main() {
 
   app.listen(PORT, () => console.log(`[branch-api:${BRANCH.code}] listening on :${PORT}`));
 
+  // 示範資料：資料庫還沒有任何訂單時，產生過去 14 天的隨機訂單（營業時間 10:00～21:00）
+  async function seedDemoOrders() {
+    if (process.env.SEED_DEMO_ORDERS !== 'true') return;
+    const existing = await pool.query('SELECT COUNT(*)::int AS n FROM orders');
+    if (existing.rows[0].n > 0) return;
+    const menu = await getCommonMenu();
+    if (!menu.length) return;
+
+    const pickOne = (arr) => arr[Math.floor(Math.random() * arr.length)];
+    const rand = (min, max) => min + Math.floor(Math.random() * (max - min + 1));
+    const HOUR = 3600e3;
+    const DAY = 24 * HOUR;
+    const TPE = 8 * HOUR; // 台灣時間 UTC+8
+    const todayStart = Math.floor((Date.now() + TPE) / DAY) * DAY - TPE;
+    const busyness = rand(2, 6); // 每間分店生意好壞不同
+
+    const orders = [];
+    for (let d = 13; d >= 0; d--) {
+      const count = rand(busyness - 1, busyness + 3);
+      for (let i = 0; i < count; i++) {
+        const at = todayStart - d * DAY + (10 + Math.random() * 11) * HOUR;
+        if (at > Date.now()) continue; // 今天還沒到的時段不產生
+        const items = Array.from({ length: rand(1, 3) }, () => {
+          const drink = pickOne(menu);
+          return { source: 'common', drinkId: drink.id, name: drink.name, price: drink.price, qty: rand(1, 3), sugar: pickOne(SUGAR), ice: pickOne(ICE) };
+        });
+        orders.push({ at, items, channel: Math.random() < 0.3 ? 'kiosk' : 'web' });
+      }
+    }
+    orders.sort((a, b) => a.at - b.at);
+    for (const o of orders) {
+      const total = o.items.reduce((a, i) => a + i.price * i.qty, 0);
+      await pool.query('INSERT INTO orders (total, items, channel, created_at) VALUES ($1, $2, $3, $4)', [
+        total,
+        JSON.stringify(o.items),
+        o.channel,
+        new Date(o.at),
+      ]);
+    }
+    console.log(`[seed] 已產生 ${orders.length} 筆示範訂單`);
+  }
+
   // 背景工作：向總部註冊 / 心跳（30 秒）、訂單同步（10 秒）
   (async () => {
     for (let i = 1; !(await heartbeat()) && i < 30; i++) await sleep(2000);
+    await seedDemoOrders().catch((err) => console.warn(`[seed] 產生示範訂單失敗：${err.message}`));
     await syncOrders();
   })();
   setInterval(heartbeat, 30_000);
