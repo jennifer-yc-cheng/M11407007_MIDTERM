@@ -292,12 +292,12 @@ docker compose exec postgres psql -U drink -d branch_taipei      # 進入台北�
 
 ### 發布 image 到 Docker Hub
 
-`docker-compose.yml` 裡的 image 名稱已經是 Docker Hub 的格式（`yearafter/drinkchain-xxx:1.0`），所以 build 完就能直接推送：
+每次發布時，每個 image 會推送兩個 tag：**版本號**（例如 `1.0`，永久保留）與 **`latest`**（永遠指向最新版）。
 
 ```bash
-sudo docker login                  # 輸入 Docker Hub 帳號 yearafter 與密碼（或 Access Token）
-sudo docker compose build          # 編譯 hq-api、branch-api、gateway 三個 image
-sudo docker compose push           # 推送到 Docker Hub（postgres 是官方 image，不會推送）
+sudo docker login                       # 第一次需要：輸入 Docker Hub 帳號 yearafter 與密碼（或 Access Token）
+sudo bash scripts/release.sh 1.0        # 建置並推送版本 1.0（下次改版改成 1.1、2.0 …）
+git tag v1.0 && git push origin v1.0    # 在 GitHub 標記同一個版本，方便對照程式碼
 ```
 
 | Docker Hub repository | 內容 |
@@ -306,7 +306,18 @@ sudo docker compose push           # 推送到 Docker Hub（postgres 是官方 i
 | `yearafter/drinkchain-branch-api` | 分店服務（所有分店共用） |
 | `yearafter/drinkchain-gateway` | 前端網站 + Nginx gateway |
 
-其他主機部署時可以直接下載這些 image，不必在本機編譯：`sudo docker compose pull && sudo docker compose up -d`
+其他主機部署時可以直接下載 image，不必在本機編譯：
+
+```bash
+sudo docker compose pull && sudo docker compose up -d                                         # 最新版（latest）
+sudo IMAGE_TAG=1.0 docker compose pull && sudo IMAGE_TAG=1.0 docker compose up -d             # 指定版本
+```
+
+### 版本紀錄
+
+| 版本 | 內容 |
+|---|---|
+| 1.0 | 總部／分店分散式架構、共用菜單與分店特色飲品（含照片上傳）、網站與 Kiosk 點餐、總部與店長營收後台、示範訂單資料 |
 
 ---
 
@@ -318,7 +329,8 @@ sudo docker compose push           # 推送到 Docker Hub（postgres 是官方 i
 ├── .env.example              # 環境變數範本
 ├── scripts/
 │   ├── add-branch.sh         # 新增分店
-│   └── demo-orders.sh        # 產生示範訂單
+│   ├── demo-orders.sh        # 產生示範訂單
+│   └── release.sh            # 發布新版本到 Docker Hub
 ├── hq-api/                   # 總部服務（Node.js + Express + PostgreSQL）
 ├── branch-api/               # 分店服務（所有分店共用同一份程式）
 └── frontend/                 # Vue 3 前端 + Nginx gateway 設定

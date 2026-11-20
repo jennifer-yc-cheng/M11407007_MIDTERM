@@ -40,7 +40,7 @@ cat >> "$OVERRIDE" <<EOF
 
   branch-$CODE:
     build: ./branch-api
-    image: yearafter/drinkchain-branch-api:1.0
+    image: yearafter/drinkchain-branch-api:\${IMAGE_TAG:-latest}
     restart: unless-stopped
     depends_on:
       postgres:

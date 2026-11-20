@@ -3,7 +3,7 @@ name: drinkchain
 # ---- 所有分店共用的設定（同一個 image，只有環境變數不同） ----
 x-branch: &branch
   build: ./branch-api
-  image: yearafter/drinkchain-branch-api:1.0
+  image: yearafter/drinkchain-branch-api:${IMAGE_TAG:-latest}
   restart: unless-stopped
   depends_on:
     postgres:
@@ -40,7 +40,7 @@ services:
   # 總部服務：共用菜單、帳號登入、全品牌營收彙總
   hq-api:
     build: ./hq-api
-    image: yearafter/drinkchain-hq-api:1.0
+    image: yearafter/drinkchain-hq-api:${IMAGE_TAG:-latest}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -58,7 +58,7 @@ services:
   # 前端網站 + API Gateway（唯一對外開放的 port）
   gateway:
     build: ./frontend
-    image: yearafter/drinkchain-gateway:1.0
+    image: yearafter/drinkchain-gateway:${IMAGE_TAG:-latest}
     restart: unless-stopped
     depends_on:
       - hq-api

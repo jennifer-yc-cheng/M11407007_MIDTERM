@@ -43,7 +43,7 @@ sudo docker compose up -d --build
 
 第一次啟動約需 3～5 分鐘。
 
-> 也可以不在本機編譯，直接使用已上傳到 Docker Hub 的 image（[yearafter](https://hub.docker.com/u/yearafter)）：
+> 也可以不在本機編譯，直接使用已上傳到 Docker Hub 的最新版 image（[yearafter](https://hub.docker.com/u/yearafter)，各版本請見 [系統手冊](MANUAL.md#發布-image-到-docker-hub)）：
 > 把上面最後一行換成
 > ```bash
 > sudo docker compose pull
