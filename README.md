@@ -52,7 +52,23 @@ sudo docker compose up -d --build
 
 ### 4. 開啟網站
 
+**方法 A：在 Ubuntu 裡**
+
 在 Ubuntu 的 Firefox 開啟 <http://localhost>，就會看到分店列表。
+
+**方法 B：在外面的 Windows 電腦**
+
+1. 在 Ubuntu 的 Terminal 查詢 VM 的 IP：
+
+   ```bash
+   hostname -I
+   ```
+
+   第一個數字就是 VM 的 IP，例如 `192.168.12.128`
+2. 在 Windows 的瀏覽器（Chrome / Edge）開啟 `http://<VM 的 IP>`，例如 `http://192.168.12.128`
+
+> 下面情境操作中的 `http://localhost`，在 Windows 上請換成 `http://<VM 的 IP>`，例如 `http://192.168.12.128/taipei`。
+> 如果 Windows 連不上，請確認 VMware 的網路設定是 NAT 或 Bridged；Ubuntu 有開防火牆的話，執行 `sudo ufw allow 80/tcp`。
 
 系統第一次啟動時，會自動為 6 間分店產生過去 14 天的示範訂單，所以後台一打開就有營收資料。
 

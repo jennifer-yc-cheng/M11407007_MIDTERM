@@ -159,7 +159,7 @@ docker compose ps
 - 從 Windows 主機（或同網段的其他電腦）：先在 Ubuntu 查 IP
 
   ```bash
-  ip -4 addr | grep inet      # 找到類似 192.168.x.x 的位址
+  hostname -I      # 第一個位址就是 VM 的 IP，例如 192.168.12.128
   ```
 
   再用瀏覽器開 `http://<Ubuntu 的 IP>`
