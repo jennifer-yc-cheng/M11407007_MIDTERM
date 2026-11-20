@@ -19,6 +19,15 @@ if (!/^[a-z0-9-]{2,40}$/.test(BRANCH.code || '') || !BRANCH.name || !BRANCH.city
 }
 const DB_NAME = `branch_${BRANCH.code.replace(/-/g, '_')}`;
 
+// 照片對外網址（經由 gateway），加上版本參數讓瀏覽器在換照片後重新抓取
+const PUBLIC_PREFIX = process.env.PUBLIC_PREFIX || `/api/branch/${BRANCH.code}`;
+const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const imageUrl = (row) =>
+  row.image_updated_at
+    ? `${PUBLIC_PREFIX}/specials/${row.id}/image?v=${new Date(row.image_updated_at).getTime()}`
+    : null;
+const withImage = ({ image_updated_at, ...rest }) => ({ ...rest, image: imageUrl({ id: rest.id, image_updated_at }) });
+
 const SUGAR = ['正常糖', '少糖', '半糖', '微糖', '無糖'];
 const ICE = ['正常冰', '少冰', '微冰', '去冰', '熱飲'];
 
@@ -31,6 +40,10 @@ CREATE TABLE IF NOT EXISTS special_drinks (
   is_active   BOOLEAN      NOT NULL DEFAULT TRUE,
   created_at  TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
+-- 店長上傳的特色飲品照片，存在本店資料庫
+ALTER TABLE special_drinks ADD COLUMN IF NOT EXISTS image            BYTEA;
+ALTER TABLE special_drinks ADD COLUMN IF NOT EXISTS image_type       VARCHAR(50);
+ALTER TABLE special_drinks ADD COLUMN IF NOT EXISTS image_updated_at TIMESTAMPTZ;
 
 CREATE TABLE IF NOT EXISTS orders (
   id         SERIAL PRIMARY KEY,
@@ -40,6 +53,8 @@ CREATE TABLE IF NOT EXISTS orders (
   synced     BOOLEAN     NOT NULL DEFAULT FALSE
 );
 CREATE INDEX IF NOT EXISTS idx_orders_unsynced ON orders (id) WHERE NOT synced;
+-- 訂單來源：web（網站點餐）或 kiosk（店內自助點餐機）
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS channel VARCHAR(20) NOT NULL DEFAULT 'web';
 
 -- 總部共用菜單的本地快取：總部連不上時，分店仍可照常營業
 CREATE TABLE IF NOT EXISTS kv_cache (
@@ -152,9 +167,30 @@ async function main() {
   app.get('/api/menu', async (req, res) => {
     const common = await getCommonMenu();
     const specials = await pool.query(
-      'SELECT id, name, price, description FROM special_drinks WHERE is_active ORDER BY id'
+      'SELECT id, name, price, description, image_updated_at FROM special_drinks WHERE is_active ORDER BY id'
     );
-    res.json({ branch: BRANCH, hqOnline, common, specials: specials.rows, sugarOptions: SUGAR, iceOptions: ICE });
+    res.json({
+      branch: BRANCH,
+      hqOnline,
+      common,
+      specials: specials.rows.map(withImage),
+      sugarOptions: SUGAR,
+      iceOptions: ICE,
+    });
+  });
+
+  // 特色飲品照片（公開）
+  app.get('/api/specials/:id/image', async (req, res) => {
+    const r = await pool.query('SELECT image, image_type FROM special_drinks WHERE id = $1 AND image IS NOT NULL', [
+      toInt(req.params.id),
+    ]);
+    if (r.rowCount === 0) return res.status(404).json({ error: '沒有照片' });
+    res.set({
+      'Content-Type': r.rows[0].image_type,
+      'Cache-Control': 'public, max-age=31536000, immutable',
+      'X-Content-Type-Options': 'nosniff',
+    });
+    res.send(r.rows[0].image);
   });
 
   // 顧客下單：價格一律以伺服器端菜單為準
@@ -176,10 +212,11 @@ async function main() {
       items.push({ source: it.source, drinkId: drink.id, name: drink.name, price: drink.price, qty, sugar: it.sugar, ice: it.ice });
     }
     const total = items.reduce((a, i) => a + i.price * i.qty, 0);
-    const r = await pool.query('INSERT INTO orders (total, items) VALUES ($1, $2) RETURNING id, created_at', [
-      total,
-      JSON.stringify(items),
-    ]);
+    const channel = req.body.channel === 'kiosk' ? 'kiosk' : 'web';
+    const r = await pool.query(
+      'INSERT INTO orders (total, items, channel) VALUES ($1, $2, $3) RETURNING id, created_at',
+      [total, JSON.stringify(items), channel]
+    );
     syncOrders(); // 立即嘗試同步，不等待
     res.status(201).json({ orderId: r.rows[0].id, total, createdAt: r.rows[0].created_at });
   });
@@ -187,9 +224,37 @@ async function main() {
   // ---------- 店長後台 ----------
   app.get('/api/admin/specials', requireStaff, async (req, res) => {
     const r = await pool.query(
-      'SELECT id, name, price, description, is_active AS "isActive", created_at AS "createdAt" FROM special_drinks ORDER BY id'
+      'SELECT id, name, price, description, is_active AS "isActive", created_at AS "createdAt", image_updated_at FROM special_drinks ORDER BY id'
     );
-    res.json(r.rows);
+    res.json(r.rows.map(withImage));
+  });
+
+  // 上傳／更換照片：body 直接是圖片檔（前端會先壓縮），上限 2MB
+  app.put(
+    '/api/admin/specials/:id/image',
+    requireStaff,
+    express.raw({ type: IMAGE_TYPES, limit: '2mb' }),
+    async (req, res) => {
+      const type = (req.headers['content-type'] || '').split(';')[0].trim();
+      if (!IMAGE_TYPES.includes(type) || !Buffer.isBuffer(req.body) || req.body.length === 0) {
+        return res.status(400).json({ error: '請上傳 JPG、PNG 或 WebP 圖片' });
+      }
+      const r = await pool.query(
+        'UPDATE special_drinks SET image = $1, image_type = $2, image_updated_at = now() WHERE id = $3',
+        [req.body, type, toInt(req.params.id)]
+      );
+      if (r.rowCount === 0) return res.status(404).json({ error: '找不到此飲品' });
+      res.json({ ok: true });
+    }
+  );
+
+  app.delete('/api/admin/specials/:id/image', requireStaff, async (req, res) => {
+    const r = await pool.query(
+      'UPDATE special_drinks SET image = NULL, image_type = NULL, image_updated_at = NULL WHERE id = $1',
+      [toInt(req.params.id)]
+    );
+    if (r.rowCount === 0) return res.status(404).json({ error: '找不到此飲品' });
+    res.json({ ok: true });
   });
 
   app.post('/api/admin/specials', requireStaff, async (req, res) => {
@@ -222,7 +287,7 @@ async function main() {
   app.get('/api/admin/orders', requireStaff, async (req, res) => {
     const limit = Math.min(Math.max(toInt(req.query.limit) || 20, 1), 200);
     const r = await pool.query(
-      'SELECT id, total, items, created_at AS "createdAt", synced FROM orders ORDER BY id DESC LIMIT $1',
+      'SELECT id, total, items, channel, created_at AS "createdAt", synced FROM orders ORDER BY id DESC LIMIT $1',
       [limit]
     );
     res.json(r.rows);
@@ -236,6 +301,7 @@ async function main() {
               COUNT(*)::int                AS "totalOrders",
               COALESCE(SUM(total) FILTER (WHERE (created_at AT TIME ZONE $1)::date = (now() AT TIME ZONE $1)::date), 0)::int AS "todayRevenue",
               COUNT(*)            FILTER (WHERE (created_at AT TIME ZONE $1)::date = (now() AT TIME ZONE $1)::date)::int     AS "todayOrders",
+              COUNT(*)            FILTER (WHERE (created_at AT TIME ZONE $1)::date = (now() AT TIME ZONE $1)::date AND channel = 'kiosk')::int AS "todayKioskOrders",
               COUNT(*)            FILTER (WHERE NOT synced)::int AS "unsynced"
          FROM orders`,
       [TZ]

@@ -22,6 +22,12 @@ if ! [[ "$CODE" =~ ^[a-z0-9-]{2,40}$ ]]; then
   exit 1
 fi
 
+case "$CODE" in
+  hq|login|api|assets|drinks)
+    echo "錯誤：$CODE 是系統保留字（網站路徑已使用），請換一個分店代碼"
+    exit 1 ;;
+esac
+
 OVERRIDE=docker-compose.override.yml
 if grep -qs "^  branch-$CODE:" docker-compose.yml "$OVERRIDE"; then
   echo "錯誤：分店 $CODE 已經存在"

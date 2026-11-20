@@ -5,6 +5,7 @@ import Login from './views/Login.vue';
 import HqDashboard from './views/HqDashboard.vue';
 import BranchMenu from './views/BranchMenu.vue';
 import BranchAdmin from './views/BranchAdmin.vue';
+import KioskView from './views/KioskView.vue';
 
 const router = createRouter({
   history: createWebHistory(),
@@ -14,6 +15,8 @@ const router = createRouter({
     { path: '/hq', component: HqDashboard, meta: { admin: true } },
     { path: '/:code', component: BranchMenu },
     { path: '/:code/admin', component: BranchAdmin, meta: { staff: true } },
+    // 店內自助點餐機：全螢幕版面，不顯示網站上方選單
+    { path: '/:code/kiosk', component: KioskView, meta: { kiosk: true } },
   ],
   scrollBehavior: () => ({ top: 0 }),
 });

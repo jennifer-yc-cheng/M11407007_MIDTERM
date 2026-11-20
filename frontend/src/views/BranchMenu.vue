@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { branchApi, money } from '../api.js';
 import { auth } from '../auth.js';
+import DrinkImage from '../components/DrinkImage.vue';
 
 const route = useRoute();
 const code = route.params.code;
@@ -91,6 +92,7 @@ onMounted(async () => {
           </div>
           <div class="grid grid-cards">
             <article v-for="d in menu.specials" :key="'s' + d.id" class="card drink special">
+              <DrinkImage :src="d.image" :name="d.name" />
               <span class="badge special">特色</span>
               <h3>{{ d.name }}</h3>
               <p class="muted desc">{{ d.description }}</p>
@@ -113,6 +115,7 @@ onMounted(async () => {
           </div>
           <div class="grid grid-cards">
             <article v-for="d in menu.common" :key="'c' + d.id" class="card drink">
+              <DrinkImage :src="d.image" :name="d.name" />
               <h3>{{ d.name }}</h3>
               <p class="muted desc">{{ d.description }}</p>
               <div class="opts">

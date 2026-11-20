@@ -23,6 +23,9 @@ watch(
 </script>
 
 <template>
+  <RouterView v-if="route.meta.kiosk" :key="route.fullPath" />
+
+  <template v-else>
   <header class="topbar">
     <div class="container bar">
       <RouterLink to="/" class="logo">
@@ -49,6 +52,7 @@ watch(
   <footer class="footer">
     <div class="container muted">© 開心茶飲 Happy Tea 連鎖品牌 · 分散式分店系統</div>
   </footer>
+  </template>
 </template>
 
 <style scoped>

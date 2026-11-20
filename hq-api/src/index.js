@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS common_drinks (
   is_active   BOOLEAN      NOT NULL DEFAULT TRUE,
   sort_order  INTEGER      NOT NULL DEFAULT 0
 );
+ALTER TABLE common_drinks ADD COLUMN IF NOT EXISTS image_url VARCHAR(300);
 
 CREATE TABLE IF NOT EXISTS sales (
   id          BIGSERIAL PRIMARY KEY,
@@ -52,24 +53,29 @@ CREATE TABLE IF NOT EXISTS sales (
 CREATE INDEX IF NOT EXISTS idx_sales_branch_time ON sales (branch_code, ordered_at);
 `;
 
+// 圖片放在 frontend/public/drinks/，由 gateway 直接提供
 const DEFAULT_DRINKS = [
-  ['開心奶茶', 70, '香濃奶茶，喝了就開心'],
-  ['快樂紅茶', 55, '經典錫蘭紅茶，清爽回甘'],
-  ['烏龍綠茶', 60, '烏龍與綠茶的雙重茶香'],
-  ['茉莉花茶', 70, '淡雅茉莉花香'],
-  ['甘蔗青茶', 65, '天然甘蔗搭配青茶'],
+  ['開心奶茶', 70, '香濃奶茶，喝了就開心', '/drinks/happy-milk-tea.png'],
+  ['快樂紅茶', 55, '經典錫蘭紅茶，清爽回甘', '/drinks/joyful-black-tea.png'],
+  ['烏龍綠茶', 60, '烏龍與綠茶的雙重茶香', '/drinks/oolong-green-tea.png'],
+  ['茉莉花茶', 70, '淡雅茉莉花香', '/drinks/jasmine-tea.png'],
+  ['甘蔗青茶', 65, '天然甘蔗搭配青茶', '/drinks/sugarcane-green-tea.png'],
 ];
 
 async function seed(pool) {
   const drinks = await pool.query('SELECT COUNT(*)::int AS n FROM common_drinks');
   if (drinks.rows[0].n === 0) {
-    for (const [i, [name, price, desc]] of DEFAULT_DRINKS.entries()) {
+    for (const [i, [name, price, desc, image]] of DEFAULT_DRINKS.entries()) {
       await pool.query(
-        'INSERT INTO common_drinks (name, price, description, sort_order) VALUES ($1, $2, $3, $4)',
-        [name, price, desc, i + 1]
+        'INSERT INTO common_drinks (name, price, description, image_url, sort_order) VALUES ($1, $2, $3, $4, $5)',
+        [name, price, desc, image, i + 1]
       );
     }
     console.log('[seed] 已建立 5 款共用飲品');
+  }
+  // 舊資料補上圖片（加入圖片功能前就建立的資料庫）
+  for (const [name, , , image] of DEFAULT_DRINKS) {
+    await pool.query('UPDATE common_drinks SET image_url = $1 WHERE name = $2 AND image_url IS NULL', [image, name]);
   }
   const admin = await pool.query("SELECT 1 FROM users WHERE username = 'admin'");
   if (admin.rowCount === 0) {
@@ -140,7 +146,7 @@ async function main() {
   // 全分店共用菜單（分店服務也從這裡取得）
   app.get('/api/menu', async (req, res) => {
     const r = await pool.query(
-      'SELECT id, name, price, description FROM common_drinks WHERE is_active ORDER BY sort_order, id'
+      'SELECT id, name, price, description, image_url AS image FROM common_drinks WHERE is_active ORDER BY sort_order, id'
     );
     res.json(r.rows);
   });
@@ -150,7 +156,7 @@ async function main() {
 
   app.get('/api/admin/menu', admin, async (req, res) => {
     const r = await pool.query(
-      'SELECT id, name, price, description, is_active AS "isActive", sort_order AS "sortOrder" FROM common_drinks ORDER BY sort_order, id'
+      'SELECT id, name, price, description, image_url AS image, is_active AS "isActive", sort_order AS "sortOrder" FROM common_drinks ORDER BY sort_order, id'
     );
     res.json(r.rows);
   });
